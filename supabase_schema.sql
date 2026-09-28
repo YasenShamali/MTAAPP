@@ -453,10 +453,47 @@ drop policy if exists "Users can select their own record" on users;
 drop policy if exists "Users can insert their own record" on users;
 drop policy if exists "Users can update their own record" on users;
 drop policy if exists "Users can delete their own record" on users;
+drop policy if exists "Responsible officers can delete user profiles" on users;
 create policy "Users can select their own record" on users for select using (auth_id = auth.uid()::text);
 create policy "Users can insert their own record" on users for insert with check (auth_id = auth.uid()::text);
 create policy "Users can update their own record" on users for update using (auth_id = auth.uid()::text) with check (auth_id = auth.uid()::text);
-create policy "Users can delete their own record" on users for delete using (auth_id = auth.uid()::text);
+
+-- Security: self-deletion is intentionally NOT granted.
+-- offers.sales_officer_id is ON DELETE CASCADE (as are offer_history.performed_by
+-- and request_media.uploaded_by), so letting a user delete their own profile row
+-- would silently and permanently destroy that user's orders, history and media.
+-- Profile removal is therefore an administrative action only.
+create policy "Responsible officers can delete user profiles" on users for delete using (
+  exists (
+    select 1
+    from users u
+    where u.auth_id = auth.uid()::text
+      and u.role = 'responsible_officer'
+  )
+);
+
+-- The app only ever needs another user's display name and role (to label who
+-- rejected or reviewed an order). Exposing whole rows would leak every user's
+-- email, phone and auth_id, so cross-user reads go through this projection
+-- instead of a permissive SELECT policy on the table.
+create or replace function public.profile_summary(p_user_id uuid)
+returns table (
+  id uuid,
+  full_name text,
+  role user_role
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select u.id, u.full_name, u.role
+  from public.users u
+  where u.id = p_user_id;
+$$;
+
+revoke all on function public.profile_summary(uuid) from public;
+grant execute on function public.profile_summary(uuid) to authenticated;
 
 alter table offers enable row level security;
 drop policy if exists "Sales officer can insert own offers" on offers;
@@ -493,6 +530,12 @@ create policy "Users can insert own requests" on offers for insert with check (
       )
   )
 );
+-- Security: the role-based branch is limited to the statuses where a reviewer
+-- actually has work to do. Previously it also allowed rewriting offers already
+-- in 'approved', 'rejected', 'completed' or 'cancelled', which let any
+-- factory/installation officer silently edit a finished order.
+-- The ownership branches (creator, requester, current assignee, supervisor) are
+-- unchanged so the shared review queue keeps working.
 create policy "Users can update related offers" on offers for update using (
   exists (
     select 1
@@ -505,7 +548,7 @@ create policy "Users can update related offers" on offers for update using (
         or assigned_to = u.id
         or (
           assigned_role = u.role
-          and status in ('pending_factory', 'pending_installation', 'in_progress', 'pending_resubmission', 'approved', 'rejected', 'completed', 'cancelled')
+          and status in ('pending_factory', 'pending_installation', 'in_progress', 'pending_resubmission')
         )
       )
   )
@@ -521,7 +564,7 @@ create policy "Users can update related offers" on offers for update using (
         or assigned_to = u.id
         or (
           assigned_role = u.role
-          and status in ('pending_factory', 'pending_installation', 'in_progress', 'pending_resubmission', 'approved', 'rejected', 'completed', 'cancelled')
+          and status in ('pending_factory', 'pending_installation', 'in_progress', 'pending_resubmission')
         )
       )
   )
@@ -539,8 +582,27 @@ alter table offer_history enable row level security;
 drop policy if exists "Users can insert offer history for their actions" on offer_history;
 drop policy if exists "Related users can select offer history" on offer_history;
 create policy "Users can insert offer history for their actions" on offer_history for insert with check (performed_by = (select id from users where auth_id = auth.uid()::text));
+
+-- Security: visibility now mirrors the "Users can select related offers" policy
+-- on the offers table. The previous version only matched sales_officer_id and
+-- factory_officer_id, so supervisors (responsible_officer), the requester, the
+-- current assignee, and the installation / wood-factory stages could not read
+-- the audit trail of orders they are legitimately involved in.
 create policy "Related users can select offer history" on offer_history for select using (
-  offer_id in (select id from offers where sales_officer_id = (select id from users where auth_id = auth.uid()::text) or factory_officer_id = (select id from users where auth_id = auth.uid()::text))
+  exists (
+    select 1
+    from offers o
+    join users u on u.auth_id = auth.uid()::text
+    where o.id = offer_id
+      and (
+        u.role = 'responsible_officer'
+        or o.sales_officer_id = u.id
+        or o.requester_id = u.id
+        or o.assigned_to = u.id
+        or o.factory_officer_id = u.id
+        or o.assigned_role = u.role
+      )
+  )
 );
 
 alter table audit_logs enable row level security;

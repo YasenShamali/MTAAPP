@@ -2,6 +2,9 @@ allprojects {
     repositories {
         // Mirrors first: the official Google / Maven Central CDNs are
         // unreachable on some networks, while these mirrors are not.
+        // The Flutter storage mirror is required for the io.flutter engine
+        // artifacts (arm64_v8a_debug etc.) hosted on storage.googleapis.com.
+        maven { url = uri("https://storage.flutter-io.cn/download.flutter.io") }
         maven { url = uri("https://maven.aliyun.com/repository/public") }
         maven { url = uri("https://maven.aliyun.com/repository/google") }
         google()

@@ -3,6 +3,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'config/app_config.dart';
 import 'l10n/generated/app_localizations.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
@@ -17,20 +18,17 @@ Future<void> main() async {
   try {
     await dotenv.load(fileName: '.env');
   } catch (_) {
-    // Ignore and fall back to a visible configuration error screen.
+    // On web, dotenv may fail — fall back to --dart-define values.
   }
 
   await NotificationService.init();
 
   await LocaleService.initialize();
 
-  final supabaseUrl = dotenv.env['SUPABASE_URL']?.trim();
-  final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY']?.trim();
+  final supabaseUrl = AppConfig.supabaseUrl;
+  final supabaseAnonKey = AppConfig.supabaseAnonKey;
 
-  if (supabaseUrl == null ||
-      supabaseUrl.isEmpty ||
-      supabaseAnonKey == null ||
-      supabaseAnonKey.isEmpty) {
+  if (supabaseUrl.isEmpty || supabaseAnonKey.isEmpty) {
     runApp(const ConfigErrorApp());
     return;
   }

@@ -41,7 +41,11 @@ flutter:
   uses-material-design: true
   generate: true
   assets:
-    - .env
+    # NOTE: `.env` is intentionally NOT bundled. Shipping it embeds the
+    # Supabase anon key and the Firebase config verbatim in the APK/AAB.
+    # Local development still works because `flutter run` passes the values
+    # with --dart-define-from-file (see tool/build.dart), and release builds do
+    # the same. See lib/config/app_config.dart.
     - assets/mta_logo.png
   fonts:
     - family: Tajawal

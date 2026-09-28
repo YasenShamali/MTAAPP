@@ -5,6 +5,10 @@ build/
 # Environment / secrets
 .env
 
+# Build-time configuration for release builds. These are public client keys
+# (Supabase anon + Firebase config) and are safe to commit; `.env` above is the
+# local-only copy and must stay out of version control.
+
 # Flutter generated files
 .flutter-plugins
 .flutter-plugins-dependencies

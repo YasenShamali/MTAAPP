@@ -463,13 +463,19 @@ class OfferService {
     String? rejecterName;
     String? rejecterRole;
     try {
-      final profile = await _client
-          .from('users')
-          .select('full_name, role')
-          .eq('id', reviewerUserId)
-          .single();
-      rejecterName = profile['full_name'] as String?;
-      rejecterRole = profile['role'] as String?;
+      // Reading another user's row directly is blocked by RLS, so the rejection
+      // label used to silently resolve to null. profile_summary() is a
+      // security-definer projection that exposes only id/full_name/role and
+      // keeps every other user's email, phone and auth_id private.
+      final profile = await _client.rpc(
+        'profile_summary',
+        params: {'p_user_id': reviewerUserId},
+      );
+      if (profile is List && profile.isNotEmpty) {
+        final row = profile.first as Map<String, dynamic>;
+        rejecterName = row['full_name'] as String?;
+        rejecterRole = row['role'] as String?;
+      }
     } on Object {
       // Best-effort: the rejection still goes through without profile info.
     }

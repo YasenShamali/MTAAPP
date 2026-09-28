@@ -1,8 +1,10 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../config/app_config.dart';
 
 /// Fired when the user taps a push notification that carries an offer id.
 /// HomeScreen listens to this notifier and opens the offer detail screen.
@@ -27,20 +29,14 @@ class NotificationService {
   static bool get isEnabled => _initialized;
 
   static FirebaseOptions? _buildOptions() {
-    String? value(String key) => dotenv.env[key]?.trim();
+    final apiKey = AppConfig.firebaseApiKey;
+    final appId = AppConfig.firebaseAppId;
+    final messagingSenderId = AppConfig.firebaseMessagingSenderId;
+    final projectId = AppConfig.firebaseProjectId;
 
-    final apiKey = value('FIREBASE_API_KEY');
-    final appId = value('FIREBASE_APP_ID');
-    final messagingSenderId = value('FIREBASE_MESSAGING_SENDER_ID');
-    final projectId = value('FIREBASE_PROJECT_ID');
-
-    if (apiKey == null ||
-        apiKey.isEmpty ||
-        appId == null ||
+    if (apiKey.isEmpty ||
         appId.isEmpty ||
-        messagingSenderId == null ||
         messagingSenderId.isEmpty ||
-        projectId == null ||
         projectId.isEmpty) {
       return null;
     }
@@ -57,7 +53,7 @@ class NotificationService {
   /// startup (after dotenv is loaded). Fails silently when Firebase keys are
   /// missing so the rest of the app keeps working without push.
   static Future<void> init() async {
-    if (_initialized) {
+    if (_initialized || kIsWeb) {
       return;
     }
     final options = _buildOptions();
@@ -79,7 +75,7 @@ class NotificationService {
   /// Requests permission (Android 13+), enables foreground presentation and
   /// registers the message listeners. Call after the user is signed in.
   static Future<void> setup() async {
-    if (!_initialized) {
+    if (!_initialized || kIsWeb) {
       return;
     }
 
@@ -143,7 +139,7 @@ class NotificationService {
   /// Registers this device token against the signed-in user.
   /// Called every time the home screen is opened; the upsert is idempotent.
   static Future<void> refreshToken() async {
-    if (!_initialized) {
+    if (!_initialized || kIsWeb) {
       return;
     }
     try {
@@ -164,7 +160,7 @@ class NotificationService {
   /// Removes this device token when the user signs out so notifications are
   /// not delivered to the wrong account on shared devices.
   static Future<void> clearToken() async {
-    if (!_initialized) {
+    if (!_initialized || kIsWeb) {
       return;
     }
     try {

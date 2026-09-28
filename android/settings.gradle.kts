@@ -23,8 +23,12 @@ pluginManagement {
 
 plugins {
     id("dev.flutter.flutter-plugin-loader") version "1.0.0"
-    id("com.android.application") version "9.0.1" apply false
-    id("org.jetbrains.kotlin.android") version "2.3.20" apply false
+    // AGP is pinned to 8.11.1 (Flutter 3.47's minimum). Staying below AGP 9 is
+    // deliberate: several plugins, notably file_picker, branch on the AGP major
+    // version and skip applying the Kotlin Gradle plugin when they detect AGP 9,
+    // which leaves their Kotlin sources uncompiled.
+    id("com.android.application") version "8.11.1" apply false
+    id("org.jetbrains.kotlin.android") version "2.2.20" apply false
 }
 
 include(":app")
